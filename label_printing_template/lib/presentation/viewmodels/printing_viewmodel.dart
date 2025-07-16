@@ -5,6 +5,7 @@ import '../../domain/entities/label.dart';
 import '../../domain/entities/printer_settings.dart';
 import '../../data/repositories/printing_repository_impl.dart';
 import '../../data/repositories/bluetooth_repository_impl.dart';
+import '../../utils/logger.dart';
 
 enum PrintState { idle, loading, waiting, printing }
 
@@ -94,7 +95,22 @@ class PrintingViewModel extends ChangeNotifier {
   }
 
   Future<bool> printCurrentLabel() async {
-    if (_selectedDevice == null || _qrData.isEmpty) return false;
+    if (_selectedDevice == null) {
+      logger.e('No device selected for printing');
+      return false;
+    }
+
+    if (_qrData.isEmpty) {
+      logger.e('No QR data provided for printing');
+      return false;
+    }
+
+    // Check if we're actually connected to the selected device
+    final isConnected = await _bluetoothRepository.checkConnectionStatus();
+    if (!isConnected) {
+      logger.e('Not connected to any Bluetooth device');
+      return false;
+    }
 
     _setState(PrintState.printing);
     try {
@@ -109,13 +125,24 @@ class PrintingViewModel extends ChangeNotifier {
       _setState(PrintState.idle);
       return success;
     } catch (e) {
+      logger.e('Error printing label: $e');
       _setState(PrintState.idle);
       return false;
     }
   }
 
   Future<bool> testPrint() async {
-    if (_selectedDevice == null) return false;
+    if (_selectedDevice == null) {
+      logger.e('No device selected for test print');
+      return false;
+    }
+
+    // Check if we're actually connected to the selected device
+    final isConnected = await _bluetoothRepository.checkConnectionStatus();
+    if (!isConnected) {
+      logger.e('Not connected to any Bluetooth device');
+      return false;
+    }
 
     _setState(PrintState.printing);
     try {
@@ -124,6 +151,7 @@ class PrintingViewModel extends ChangeNotifier {
       _setState(PrintState.idle);
       return success;
     } catch (e) {
+      logger.e('Error in test print: $e');
       _setState(PrintState.idle);
       return false;
     }

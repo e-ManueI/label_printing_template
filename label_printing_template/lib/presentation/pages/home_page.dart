@@ -281,10 +281,24 @@ class _HomeScreenState extends State<HomeScreen> {
                             Expanded(
                               child: ElevatedButton.icon(
                                 onPressed:
-                                    printingVM.selectedDevice != null
+                                    _canTestPrint(printingVM)
                                         ? () => _testPrint(context, printingVM)
                                         : null,
-                                icon: const Icon(Icons.science),
+                                icon:
+                                    printingVM.state == PrintState.loading ||
+                                            printingVM.state ==
+                                                PrintState.waiting ||
+                                            printingVM.state ==
+                                                PrintState.printing
+                                        ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                        : Icon(Icons.science),
                                 label: const Text('Test Print'),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.orange,
@@ -335,6 +349,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return printingVM.state == PrintState.idle &&
         printingVM.selectedDevice != null &&
         printingVM.qrData.isNotEmpty;
+  }
+
+  bool _canTestPrint(PrintingViewModel printingVM) {
+    return printingVM.state == PrintState.idle &&
+        printingVM.selectedDevice != null;
   }
 
   void _showPrinterSelectionDialog(

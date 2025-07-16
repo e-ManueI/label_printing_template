@@ -1,8 +1,7 @@
 import 'package:bluetooth_print_plus/bluetooth_print_plus.dart';
-import 'package:bluetooth_print_plus/src/tsc_command.dart';
+import 'dart:typed_data';
 import 'package:label_printing_template/data/models/label_model.dart';
 import 'package:label_printing_template/data/models/printer_settings_model.dart';
-import 'package:label_printing_template/data/datasources/services/bluetooth_service_datasource.dart';
 import 'package:label_printing_template/utils/logger.dart';
 
 class PrintingService {
@@ -10,7 +9,7 @@ class PrintingService {
   factory PrintingService() => _instance;
   PrintingService._internal();
 
-  /// Print a label using TSC commands
+  /// Print a label using direct TSPL commands
   Future<bool> printLabel(
     LabelModel label,
     PrinterSettingsModel settings, {
@@ -19,33 +18,29 @@ class PrintingService {
     try {
       logger.i('Starting print job for label: ${label.id}');
 
-      // Check if we have an active Bluetooth connection
-      final bluetoothService = BluetoothService();
-      final isConnected = await bluetoothService.checkConnectionStatus();
+      // Check if we have an active Bluetooth connection using the same method as the rest of the app
+      final isConnected = await BluetoothPrintPlus.isConnected;
       if (!isConnected) {
         logger.e('No active Bluetooth connection');
         return false;
       }
       logger.i('✓ Bluetooth connection verified');
 
-      final tsc = TscCommand();
+      // Build TSPL command string
+      final tscCommands = _buildTscCommands(label, settings, copies);
+      logger.i('Generated TSPL commands: $tscCommands');
 
-      // Initialize printer with settings
-      await _initializePrinter(tsc, settings);
-
-      // Print label content
-      await _printLabelContent(tsc, label, settings);
-
-      // Execute print command
-      logger.i('Sending print command with $copies copies');
+      // Send commands directly to printer
       try {
-        await tsc.print(copies);
-        logger.i('✓ Print command executed successfully');
+        await BluetoothPrintPlus.write(
+          Uint8List.fromList(tscCommands.codeUnits),
+        );
+        logger.i('✓ TSPL commands sent successfully');
 
-        // Add a small delay to ensure commands are processed
-        await Future.delayed(const Duration(milliseconds: 500));
+        // Add delay to ensure commands are processed
+        await Future.delayed(const Duration(milliseconds: 1000));
       } catch (e) {
-        logger.e('Error executing print command: $e');
+        logger.e('Error sending TSPL commands: $e');
         return false;
       }
 
@@ -66,42 +61,38 @@ class PrintingService {
     try {
       logger.i('Starting batch print job for ${labels.length} labels');
 
-      // Check if we have an active Bluetooth connection
-      final bluetoothService = BluetoothService();
-      final isConnected = await bluetoothService.checkConnectionStatus();
+      // Check if we have an active Bluetooth connection using the same method as the rest of the app
+      final isConnected = await BluetoothPrintPlus.isConnected;
       if (!isConnected) {
         logger.e('No active Bluetooth connection');
         return false;
       }
       logger.i('✓ Bluetooth connection verified');
 
-      final tsc = TscCommand();
-
-      // Initialize printer once for the batch
-      await _initializePrinter(tsc, settings);
-
       for (int i = 0; i < labels.length; i++) {
         final label = labels[i];
         logger.i('Printing label ${i + 1}/${labels.length}: ${label.id}');
 
-        // Print label content
-        await _printLabelContent(tsc, label, settings);
+        // Build and send TSPL commands for this label
+        final tscCommands = _buildTscCommands(label, settings, copiesPerLabel);
+        logger.i('Generated TSPL commands for label ${i + 1}: $tscCommands');
 
-        // Print this label
         try {
-          await tsc.print(copiesPerLabel);
-          logger.i('✓ Print command executed successfully for label ${i + 1}');
+          await BluetoothPrintPlus.write(
+            Uint8List.fromList(tscCommands.codeUnits),
+          );
+          logger.i('✓ TSPL commands sent successfully for label ${i + 1}');
         } catch (e) {
-          logger.e('Error executing print command for label ${i + 1}: $e');
+          logger.e('Error sending TSPL commands for label ${i + 1}: $e');
           return false;
         }
 
         // Add delay to ensure commands are processed
-        await Future.delayed(const Duration(milliseconds: 500));
+        await Future.delayed(const Duration(milliseconds: 1000));
 
         // Add delay between labels to prevent buffer overflow
         if (i < labels.length - 1) {
-          await Future.delayed(const Duration(milliseconds: 300));
+          await Future.delayed(const Duration(milliseconds: 500));
         }
       }
 
@@ -132,124 +123,74 @@ class PrintingService {
     }
   }
 
-  /// Initialize printer with settings
-  Future<void> _initializePrinter(
-    TscCommand tsc,
-    PrinterSettingsModel settings,
-  ) async {
-    try {
-      logger.i('Initializing printer...');
-
-      // Clear previous commands
-      await tsc.cleanCommand();
-      logger.i('✓ Commands cleared');
-
-      // Set label size
-      final widthInDots = _convertToDots(settings.paperWidth, settings.unit);
-      await tsc.size(
-        width: widthInDots,
-        height: 320,
-      ); // Default height of 320 dots
-      logger.i('✓ Label size set: ${widthInDots}x320 dots');
-
-      // Set gap between labels
-      await tsc.gap(settings.gap);
-      logger.i('✓ Gap set: ${settings.gap}');
-
-      // Set print density
-      await tsc.density(settings.density);
-      logger.i('✓ Density set: ${settings.density}');
-
-      // Clear print buffer
-      await tsc.cls();
-      logger.i('✓ Print buffer cleared');
-
-      logger.i(
-        'Printer initialized successfully with width: ${widthInDots} dots, gap: ${settings.gap}, density: ${settings.density}',
-      );
-    } catch (e) {
-      logger.e('Error initializing printer: $e');
-      rethrow;
-    }
-  }
-
-  /// Print label content with QR code and text
-  Future<void> _printLabelContent(
-    TscCommand tsc,
+  /// Build TSPL command string for a label
+  String _buildTscCommands(
     LabelModel label,
     PrinterSettingsModel settings,
-  ) async {
-    try {
-      final widthInDots = _convertToDots(settings.paperWidth, settings.unit);
+    int copies,
+  ) {
+    final widthInDots = _convertToDots(settings.paperWidth, settings.unit);
+    final heightInDots = 320; // Default height
+    final gapInDots = _convertToDots(settings.gap.toDouble(), settings.unit);
 
-      // Calculate positions based on label width
-      final qrSize = 80; // QR code size in dots
-      final qrX = (widthInDots - qrSize) ~/ 2; // Center QR code
-      final qrY = 40;
+    // Calculate positions - ensure they're within printable area
+    final qrSize = 80;
+    final qrX = (widthInDots - qrSize) ~/ 2;
+    final qrY = 50; // Increased from 40 to give more space
+    final textX = 50; // Increased from 40 for better positioning
+    final textY = qrY + qrSize + 40; // Increased spacing from QR code
+    final timestampY =
+        textY + 80; // Increased spacing between text and timestamp
 
-      final textX = 40;
-      final textY = qrY + qrSize + 20; // Text below QR code
+    // Build TSPL commands
+    final commands = StringBuffer();
 
-      logger.i('Printing QR code at position ($qrX, $qrY)');
-      // Print QR code
-      await tsc.qrCode(content: label.qrData, x: qrX, y: qrY, cellWidth: 5);
-      logger.i('✓ QR code printed');
+    // Initialize printer with correct TSPL syntax
+    commands.writeln(
+      'SIZE $widthInDots,$heightInDots',
+    ); // Fixed: no units, just dots
+    commands.writeln('GAP $gapInDots,0'); // Fixed: gap in dots, not units
+    commands.writeln('DENSITY ${settings.density}');
+    commands.writeln('CLS');
 
-      logger.i('Printing text content at position ($textX, $textY)');
-      // Print text content with multiple lines
-      await _printMultilineText(
-        tsc,
-        label.content,
-        textX,
-        textY,
-        widthInDots - 80,
-      );
-      logger.i('✓ Text content printed');
+    // Add small delay between initialization and content
+    commands.writeln('DELAY 100');
 
-      // Print timestamp if needed
-      final timestampY = textY + 60;
-      logger.i('Printing timestamp at position ($textX, $timestampY)');
-      await tsc.text(
-        content: 'Created: ${_formatTimestamp(label.createdAt)}',
-        x: textX,
-        y: timestampY,
-      );
-      logger.i('✓ Timestamp printed');
-    } catch (e) {
-      logger.e('Error printing label content: $e');
-      rethrow;
-    }
-  }
+    // Print QR code
+    commands.writeln('QRCODE $qrX,$qrY,L,5,A,0,"${label.qrData}"');
 
-  /// Print multiline text with word wrapping
-  Future<void> _printMultilineText(
-    TscCommand tsc,
-    String text,
-    int x,
-    int y,
-    int maxWidth,
-  ) async {
-    try {
-      final lines = _wrapText(text, maxWidth);
-      int currentY = y;
+    // Add delay after QR code
+    commands.writeln('DELAY 50');
 
-      logger.i('Printing ${lines.length} lines of text');
-
-      for (int i = 0; i < lines.length; i++) {
-        final line = lines[i];
-        if (line.trim().isNotEmpty) {
-          logger.i(
-            'Printing line ${i + 1}: "${line.trim()}" at position ($x, $currentY)',
-          );
-          await tsc.text(content: line.trim(), x: x, y: currentY);
-          currentY += 30; // Line height
-        }
+    // Print text content with proper font specification
+    final lines = _wrapText(
+      label.content,
+      widthInDots - 100,
+    ); // Reduced max width
+    int currentY = textY;
+    for (final line in lines) {
+      if (line.trim().isNotEmpty) {
+        // Use font 1 (standard font) instead of font 3, with proper parameters
+        commands.writeln('TEXT $textX,$currentY,"1",0,1,1,"${line.trim()}"');
+        currentY += 40; // Increased line spacing
       }
-      logger.i('✓ All text lines printed');
-    } catch (e) {
-      logger.e('Error printing multiline text: $e');
-      rethrow;
     }
+
+    // Add delay after text
+    commands.writeln('DELAY 50');
+
+    // Print timestamp with same font
+    commands.writeln(
+      'TEXT $textX,$timestampY,"1",0,1,1,"Created: ${_formatTimestamp(label.createdAt)}"',
+    );
+
+    // Add delay before print command
+    commands.writeln('DELAY 100');
+
+    // Print command
+    commands.writeln('PRINT $copies');
+
+    return commands.toString();
   }
 
   /// Wrap text to fit within specified width
