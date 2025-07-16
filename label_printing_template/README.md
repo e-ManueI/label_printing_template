@@ -1,168 +1,221 @@
 # Label Printing Template
 
-A Flutter application for printing labels using Bluetooth thermal printers. This project follows clean architecture principles with proper separation of concerns using repositories and services.
+A Flutter application for managing and printing labels with QR codes using Bluetooth thermal printers. Built with Clean Architecture principles and optimized for reliable Bluetooth communication.
 
-## Architecture Overview
+## 🏗️ Architecture Overview
 
-The application follows a layered architecture pattern:
+This project follows **Clean Architecture** principles with a clear separation of concerns across three main layers:
 
-```
-┌─────────────────────────────────────┐
-│              Views                  │  ← UI Layer
-├─────────────────────────────────────┤
-│           ViewModels                │  ← Business Logic Layer
-├─────────────────────────────────────┤
-│           Repositories              │  ← Data Access Layer
-├─────────────────────────────────────┤
-│            Services                 │  ← External Services Layer
-├─────────────────────────────────────┤
-│             Models                  │  ← Data Models Layer
-└─────────────────────────────────────┘
-```
-
-## Project Structure
+### 📁 Project Structure
 
 ```
 lib/
-├── models/                    # Data models
-│   ├── label_model.dart       # Label data model
-│   └── printer_settings_model.dart # Printer settings model
-├── services/                  # External services
-│   ├── bluetooth_service.dart # Bluetooth operations
-│   ├── printing_service.dart  # Printing operations
-│   └── storage_service.dart   # Local storage operations
-├── repositories/              # Data access layer
-│   ├── bluetooth_repository.dart
-│   ├── printing_repository.dart
-│   ├── settings_repository.dart
-│   └── label_repository.dart
-├── viewmodels/               # Business logic
-│   ├── printing_viewmodel.dart
-│   ├── settings_viewmodel.dart
-│   └── label_viewmodel.dart
-├── views/                    # UI components
-│   ├── home_screen.dart
-│   └── settings_screen.dart
-├── utils/                    # Utilities
-│   └── logger.dart
-└── main.dart                 # App entry point
+├── domain/                    # Business Logic Layer
+│   ├── entities/             # Core business objects
+│   ├── repositories/         # Abstract repository interfaces
+│   └── usecases/            # Business use cases
+├── data/                     # Data Layer
+│   ├── models/              # Data transfer objects (DTOs)
+│   ├── datasources/         # Data sources (local, remote)
+│   └── repositories/        # Repository implementations
+└── presentation/            # Presentation Layer
+    ├── pages/               # UI screens
+    └── viewmodels/          # State management
 ```
 
-## Features
+## 🔄 Data Flow Sequence
 
-### Core Functionality
-- **Bluetooth Printing**: Connect to and print to thermal printers
-- **Label Management**: Create, save, and manage labels
-- **Settings Management**: Configure printer settings
+For a detailed understanding of how data flows through the application, see the [Data Flow Sequence Diagram](./docs/data-flow-sequence.md). This diagram illustrates:
+
+- **Bluetooth Connection Flow**: Device discovery, connection, and status monitoring
+- **Print Job Execution**: From UI interaction to printer command execution
+- **Label Management**: CRUD operations and data persistence
+- **Error Handling**: How errors are propagated through the layers
+
+## 🎯 Layer Responsibilities
+
+### Domain Layer (`domain/`)
+- **Entities**: Core business objects (pure Dart classes)
+- **Repositories**: Abstract interfaces for data access
+- **Use Cases**: Business logic and rules
+
+### Data Layer (`data/`)
+- **Models**: Data transfer objects and serialization
+- **Data Sources**: Implementation of data access (local storage, APIs)
+- **Repository Implementations**: Concrete implementations of domain repositories
+
+### Presentation Layer (`presentation/`)
+- **Pages**: UI screens and widgets
+- **ViewModels**: State management using ChangeNotifier
+
+## 📋 Domain Entities vs Data Models
+
+### Domain Entities (`domain/entities`)
+
+**Purpose:**
+- Core business objects
+- Pure Dart classes with minimal dependencies
+- Represent essential data structures independent of any framework or data source
+- Should not depend on anything in the data layer
+
+**Examples:**
+- `label.dart` (with the `Label` class)
+- `printer_settings.dart` (with the `PrinterSettings` class)
+
+**Usage:**
+- Used throughout the domain and presentation layers
+- Used in repositories, use cases, and viewmodels
+
+### Data Models (`data/models`)
+
+**Purpose:**
+- Data transfer objects (DTOs) or models for serialization
+- Used to convert data to/from external sources (APIs, databases, local storage)
+- Often include `fromJson`, `toJson`, or similar methods for mapping
+- May depend on serialization libraries or data source specifics
+
+**Examples:**
+- `label_model.dart` (with the `LabelModel` class)
+- `printer_settings_model.dart` (with the `PrinterSettingsModel` class)
+
+**Usage:**
+- Used in the data layer only
+- Used by data sources and repository implementations to convert between raw data and domain entities
+
+### Summary Table
+
+| Layer/Folder | Class Example | Purpose/Usage |
+|--------------|---------------|---------------|
+| `domain/entities` | `Label`, `PrinterSettings` | Core business objects, pure Dart, no dependencies |
+| `data/models` | `LabelModel`, `PrinterSettingsModel` | Serialization, mapping, DTOs, data source specific |
+
+### Which is correct?
+
+- **If you are defining the core business object:** Place it in `domain/entities`
+- **If you are defining a class for mapping/serialization (e.g., for API or storage):** Place it in `data/models`
+
+In this project, both are correct but for different purposes:
+- Use `domain/entities` for your app's core logic and business rules
+- Use `data/models` for data source interaction and mapping
+
+If you want to avoid duplication, you can sometimes use the entity directly as a model, but in clean architecture, keeping them separate is best practice.
+
+## 🚀 Features
+
+- **Label Management**: Create, edit, delete, and search labels
 - **QR Code Generation**: Generate QR codes for labels
-- **Local Storage**: Persist data locally using SharedPreferences
+- **Bluetooth Printing**: Connect to and print with Bluetooth thermal printers
+- **Settings Management**: Configure printer settings and preferences
+- **Local Storage**: Persistent storage using SharedPreferences
+- **Clean Architecture**: Well-structured, maintainable codebase
+- **Robust Error Handling**: Comprehensive error handling and recovery
+- **Connection Monitoring**: Real-time Bluetooth connection status monitoring
 
-### Advanced Features
-- **Batch Printing**: Print multiple labels at once
-- **Label Search**: Search through saved labels
-- **Label Statistics**: View printing statistics
-- **Import/Export**: Import and export label data
-- **Test Printing**: Test printer functionality
-- **Multiple Units**: Support for mm, inch, and dots
-- **Printer Types**: Support for TSPL, ESC/POS, and ZPL
+## 🔧 Bluetooth Printing Implementation
 
-## Dependencies
+### Key Features
+- **TSC Command Support**: Full support for TSC (Thermal Printer Command) protocol
+- **Connection Verification**: Active connection status checking before printing
+- **Error Recovery**: Automatic retry mechanisms and graceful error handling
+- **Print Queue Management**: Efficient handling of single and batch print jobs
+- **Device Discovery**: Robust Bluetooth device scanning and connection
 
-### Core Dependencies
-- `flutter`: Flutter framework
-- `provider`: State management
-- `bluetooth_print_plus`: Bluetooth printing functionality
-- `shared_preferences`: Local data storage
-- `qr_flutter`: QR code generation
-- `logger`: Logging functionality
+### Technical Improvements
+- **Connection State Management**: Uses `BluetoothPrintPlus.isConnected` for accurate status
+- **Scan Optimization**: Proper scan cleanup and timeout handling
+- **Command Timing**: Strategic delays for reliable Bluetooth communication
+- **Comprehensive Logging**: Detailed logging for debugging and monitoring
 
-### Development Dependencies
-- `flutter_test`: Testing framework
-- `flutter_lints`: Code linting
+## 📱 Screens
 
-## Getting Started
+### Home Screen
+- QR code preview
+- Label content and QR data input
+- Bluetooth printer connection
+- Print functionality
 
-### Prerequisites
-- Flutter SDK (^3.7.2)
-- Dart SDK
-- Android Studio / VS Code
-- Physical device with Bluetooth capability
+### Settings Screen
+- Printer configuration (paper width, density, gap)
+- Unit selection (mm, inch, dots)
+- Printer type selection
+- Reset to defaults
 
-### Installation
+### Label Management Screen
+- List of all created labels
+- Search and filter functionality
+- Create, edit, and delete labels
+- Label statistics
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd label_printing_template
+## 🛠️ Dependencies
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.1.5
+  qr_flutter: ^4.1.0
+  shared_preferences: ^2.5.3
+  bluetooth_print_plus: ^2.4.6
+  logger: ^2.0.2
 ```
 
-2. Install dependencies:
-```bash
-flutter pub get
+## 🏃‍♂️ Getting Started
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd label_printing_template
+   ```
+
+2. **Install dependencies**
+   ```bash
+   flutter pub get
+   ```
+
+3. **Run the app**
+   ```bash
+   flutter run
+   ```
+
+## 📦 State Management
+
+This project uses **Provider** with **ChangeNotifier** for state management:
+
+- `SettingsViewModel`: Manages printer settings and configuration
+- `PrintingViewModel`: Handles Bluetooth connection and printing operations
+- `LabelViewModel`: Manages label CRUD operations and search
+
+## 🔧 Configuration
+
+### Bluetooth Permissions
+
+For Android, add the following permissions to `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.BLUETOOTH" />
+<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+<uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
 ```
 
-3. Run the application:
-```bash
-flutter run
+For iOS, add the following to `ios/Runner/Info.plist`:
+
+```xml
+<key>NSBluetoothAlwaysUsageDescription</key>
+<string>This app needs bluetooth to connect to label printers</string>
+<key>NSBluetoothPeripheralUsageDescription</key>
+<string>This app needs bluetooth to connect to label printers</string>
 ```
 
-## Usage
+## 🧪 Testing
 
-### Connecting to a Printer
-1. Open the app
-2. Navigate to the home screen
-3. Tap "Scan for Devices" to find available Bluetooth printers
-4. Select your printer from the list
-5. The app will attempt to connect automatically
+Run tests with:
+```bash
+flutter test
+```
 
-### Creating and Printing Labels
-1. Enter the content for your label
-2. Enter the QR code data
-3. Tap "Print" to send the label to the printer
-4. The label will be saved automatically for future use
-
-### Managing Settings
-1. Navigate to the settings screen
-2. Configure paper width, density, gap, and other settings
-3. Settings are automatically saved
-
-### Managing Labels
-- View all saved labels
-- Search for specific labels
-- Delete unwanted labels
-- Export/import label data
-
-## Architecture Details
-
-### Models Layer
-The models layer contains data classes that represent the core entities:
-
-- **LabelModel**: Represents a label with content, QR data, and metadata
-- **PrinterSettingsModel**: Represents printer configuration settings
-
-### Services Layer
-The services layer handles external operations:
-
-- **BluetoothService**: Manages Bluetooth device connections and scanning
-- **PrintingService**: Handles actual printing operations using TSPL commands
-- **StorageService**: Manages local data persistence using SharedPreferences
-
-### Repositories Layer
-The repositories layer provides a clean interface for data access:
-
-- **BluetoothRepository**: Abstracts Bluetooth operations
-- **PrintingRepository**: Abstracts printing operations with validation
-- **SettingsRepository**: Manages printer settings with validation
-- **LabelRepository**: Manages label CRUD operations
-
-### ViewModels Layer
-The viewmodels layer contains business logic and state management:
-
-- **PrintingViewModel**: Manages printing state and operations
-- **SettingsViewModel**: Manages settings state and operations
-- **LabelViewModel**: Manages label state and operations
-
-## Contributing
+## 📝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -170,23 +223,37 @@ The viewmodels layer contains business logic and state management:
 4. Add tests if applicable
 5. Submit a pull request
 
-## License
+## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Support
+## 🤝 Support
 
-For support and questions, please open an issue on the GitHub repository.
+If you encounter any issues or have questions, please open an issue on GitHub.
 
-## Getting Started
+## 🔍 Troubleshooting
 
-This project is a starting point for a Flutter application.
+### Common Bluetooth Issues
 
-A few resources to get you started if this is your first Flutter project:
+1. **Printer Not Found**: Ensure Bluetooth is enabled and printer is in pairing mode
+2. **Connection Drops**: Check for interference and ensure printer is within range
+3. **Print Commands Not Executing**: Verify connection status and check printer settings
+4. **Permission Errors**: Ensure all required permissions are granted
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### Debug Mode
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Enable detailed logging by checking the console output. The app provides comprehensive logging for:
+- Bluetooth connection status
+- Print command execution
+- Error details and recovery attempts
+
+---
+
+**Note**: This project is designed as a template and can be extended with additional features like:
+- Cloud synchronization
+- Multiple printer support
+- Advanced label templates
+- Barcode generation
+- Export/import functionality
+- Print job scheduling
+- Printer status monitoring

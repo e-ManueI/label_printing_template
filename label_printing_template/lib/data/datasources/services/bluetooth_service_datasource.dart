@@ -15,12 +15,27 @@ class BluetoothService {
   }) async {
     try {
       logger.i('Starting Bluetooth device scan...');
+
+      // Stop any ongoing scan first
+      await BluetoothPrintPlus.stopScan();
+
+      // Start new scan
       await BluetoothPrintPlus.startScan(timeout: timeout);
+
+      // Wait for scan results
       final devices = await BluetoothPrintPlus.scanResults.first;
       logger.i('Found ${devices.length} Bluetooth devices');
+
+      // Stop scan after getting results
+      await BluetoothPrintPlus.stopScan();
+
       return devices;
     } catch (e) {
       logger.e('Error scanning for Bluetooth devices: $e');
+      // Ensure scan is stopped even if error occurs
+      try {
+        await BluetoothPrintPlus.stopScan();
+      } catch (_) {}
       rethrow;
     }
   }
@@ -59,8 +74,10 @@ class BluetoothService {
   /// Get the current connection status
   Future<bool> checkConnectionStatus() async {
     try {
-      // This is a simplified check - in a real app you might want more robust connection checking
-      return _connectedDevice != null;
+      // Use the package's connection status
+      final isConnected = await BluetoothPrintPlus.isConnected;
+      logger.i('Connection status check: $isConnected');
+      return isConnected;
     } catch (e) {
       logger.e('Error checking connection status: $e');
       return false;
@@ -74,11 +91,23 @@ class BluetoothService {
       // Note: The bluetooth_print_plus package doesn't have a direct getBondedDevices method
       // This would typically be handled by the platform-specific implementation
       // For now, we'll return an empty list and handle this in the repository layer
-      logger.i('Bonded devices functionality not directly available in this package');
+      logger.i(
+        'Bonded devices functionality not directly available in this package',
+      );
       return [];
     } catch (e) {
       logger.e('Error getting bonded devices: $e');
       return [];
+    }
+  }
+
+  /// Get current connection state
+  Future<bool> getCurrentConnectionState() async {
+    try {
+      return await BluetoothPrintPlus.isConnected;
+    } catch (e) {
+      logger.e('Error getting current connection state: $e');
+      return false;
     }
   }
 }

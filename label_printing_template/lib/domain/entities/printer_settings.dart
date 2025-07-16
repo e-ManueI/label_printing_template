@@ -21,7 +21,7 @@ class PrinterSettings {
       unit: 'mm',
       density: 8,
       gap: 20,
-      printerType: 'TSPL',
+      printerType: 'TSC',
     );
   }
 

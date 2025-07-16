@@ -21,7 +21,7 @@ class PrinterSettingsModel {
       unit: 'mm',
       density: 8,
       gap: 20,
-      printerType: 'TSPL',
+      printerType: 'TSC',
     );
   }
 
@@ -31,7 +31,7 @@ class PrinterSettingsModel {
       unit: json['unit'] as String? ?? 'mm',
       density: json['density'] as int? ?? 8,
       gap: json['gap'] as int? ?? 20,
-      printerType: json['printerType'] as String? ?? 'TSPL',
+      printerType: json['printerType'] as String? ?? 'TSC',
       customSettings: json['customSettings'] as Map<String, dynamic>? ?? {},
     );
   }

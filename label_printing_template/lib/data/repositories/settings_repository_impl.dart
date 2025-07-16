@@ -6,7 +6,7 @@ class SettingsRepositoryImpl implements SettingsRepository {
   final StorageDataSource _storageDataSource;
 
   SettingsRepositoryImpl({StorageDataSource? storageDataSource})
-      : _storageDataSource = storageDataSource ?? SharedPreferencesDataSource();
+    : _storageDataSource = storageDataSource ?? SharedPreferencesDataSource();
 
   @override
   Future<PrinterSettings> loadSettings() async {
@@ -18,7 +18,7 @@ class SettingsRepositoryImpl implements SettingsRepository {
           unit: data['unit'] ?? 'mm',
           density: data['density'] ?? 8,
           gap: data['gap'] ?? 20,
-          printerType: data['printerType'] ?? 'TSPL',
+          printerType: data['printerType'] ?? 'TSC',
           customSettings: Map<String, dynamic>.from(
             data['customSettings'] ?? {},
           ),
@@ -100,7 +100,7 @@ class SettingsRepositoryImpl implements SettingsRepository {
 
   @override
   List<String> getAvailablePrinterTypes() {
-    return ['Zebra', 'TSC', 'Citizen', 'Generic', 'TSPL'];
+    return ['Zebra', 'TSC', 'Citizen', 'Generic'];
   }
 
   @override
