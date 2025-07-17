@@ -88,6 +88,7 @@ class PrintingRepositoryImpl implements PrintingRepository {
   @override
   bool validateSettings(PrinterSettings settings) {
     return settings.paperWidth > 0 &&
+        settings.paperHeight > 0 &&
         settings.density >= 1 &&
         settings.density <= 15 &&
         settings.gap >= 0;
@@ -128,6 +129,7 @@ class PrintingRepositoryImpl implements PrintingRepository {
   ) {
     return PrinterSettingsModel(
       paperWidth: settings.paperWidth,
+      paperHeight: settings.paperHeight,
       density: settings.density,
       gap: settings.gap,
       unit: settings.unit,

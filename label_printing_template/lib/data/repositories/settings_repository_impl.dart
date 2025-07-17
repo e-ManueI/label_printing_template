@@ -15,6 +15,7 @@ class SettingsRepositoryImpl implements SettingsRepository {
       if (data != null) {
         return PrinterSettings(
           paperWidth: data['paperWidth'] ?? 58.0,
+          paperHeight: data['paperHeight'] ?? 58.0,
           unit: data['unit'] ?? 'mm',
           density: data['density'] ?? 8,
           gap: data['gap'] ?? 20,

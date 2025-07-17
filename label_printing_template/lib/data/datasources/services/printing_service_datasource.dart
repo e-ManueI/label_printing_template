@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:bluetooth_print_plus/bluetooth_print_plus.dart';
 import 'dart:typed_data';
 import 'package:label_printing_template/data/models/label_model.dart';
@@ -129,110 +131,72 @@ class PrintingService {
     PrinterSettingsModel settings,
     int copies,
   ) {
-    final widthInDots = _convertToDots(settings.paperWidth, settings.unit);
-    final heightInDots = 320; // Default height
-    final gapInDots = _convertToDots(settings.gap.toDouble(), settings.unit);
-
-    // Calculate positions - ensure they're within printable area
-    final qrSize = 80;
-    final qrX = (widthInDots - qrSize) ~/ 2;
-    final qrY = 50; // Increased from 40 to give more space
-    final textX = 50; // Increased from 40 for better positioning
-    final textY = qrY + qrSize + 40; // Increased spacing from QR code
-    final timestampY =
-        textY + 80; // Increased spacing between text and timestamp
-
-    // Build TSPL commands
-    final commands = StringBuffer();
-
-    // Initialize printer with correct TSPL syntax
-    commands.writeln(
-      'SIZE $widthInDots,$heightInDots',
-    ); // Fixed: no units, just dots
-    commands.writeln('GAP $gapInDots,0'); // Fixed: gap in dots, not units
-    commands.writeln('DENSITY ${settings.density}');
-    commands.writeln('CLS');
-
-    // Add small delay between initialization and content
-    commands.writeln('DELAY 100');
-
-    // Print QR code
-    commands.writeln('QRCODE $qrX,$qrY,L,5,A,0,"${label.qrData}"');
-
-    // Add delay after QR code
-    commands.writeln('DELAY 50');
-
-    // Print text content with proper font specification
-    final lines = _wrapText(
-      label.content,
-      widthInDots - 100,
-    ); // Reduced max width
-    int currentY = textY;
-    for (final line in lines) {
-      if (line.trim().isNotEmpty) {
-        // Use font 1 (standard font) instead of font 3, with proper parameters
-        commands.writeln('TEXT $textX,$currentY,"1",0,1,1,"${line.trim()}"');
-        currentY += 40; // Increased line spacing
-      }
-    }
-
-    // Add delay after text
-    commands.writeln('DELAY 50');
-
-    // Print timestamp with same font
-    commands.writeln(
-      'TEXT $textX,$timestampY,"1",0,1,1,"Created: ${_formatTimestamp(label.createdAt)}"',
+    final num dpi = settings.dpi ?? 203;
+    final widthInDots = _convertToDots(dpi, settings.paperWidth, settings.unit);
+    final heightInDots = _convertToDots(
+      dpi,
+      settings.paperHeight,
+      settings.unit,
+    );
+    final gapInDots = _convertToDots(
+      dpi,
+      settings.gap.toDouble(),
+      settings.unit,
     );
 
-    // Add delay before print command
-    commands.writeln('DELAY 100');
+    // Define margins in mm then convert to dots
+    final sideMargin = _convertToDots(dpi, 5.0, settings.unit); // 5 mm
+    final topMargin = _convertToDots(dpi, 5.0, settings.unit); // 5 mm from top
+    final bottomSpace = _convertToDots(
+      dpi,
+      5.0,
+      settings.unit,
+    ); // 5 mm below QR
 
-    // Print command
-    commands.writeln('PRINT $copies');
+    // Determine maximum QR size (square, fitting within available space)
+    final availableWidth = widthInDots - 2 * sideMargin;
+    final availableHeight = heightInDots - topMargin - bottomSpace;
 
-    return commands.toString();
-  }
+    // Calculate QR size considering both width and height constraints
+    final qrSize = math
+        .min(availableWidth, availableHeight)
+        .clamp(100, heightInDots);
 
-  /// Wrap text to fit within specified width
-  List<String> _wrapText(String text, int maxWidth) {
-    final words = text.split(' ');
-    final lines = <String>[];
-    String currentLine = '';
+    // Center QR both horizontally and vertically
+    final qrX = (widthInDots - qrSize) ~/ 2;
+    final qrY = (heightInDots - qrSize) ~/ 2;
 
-    for (final word in words) {
-      final testLine = currentLine.isEmpty ? word : '$currentLine $word';
-      if (_estimateTextWidth(testLine) <= maxWidth) {
-        currentLine = testLine;
-      } else {
-        if (currentLine.isNotEmpty) {
-          lines.add(currentLine);
-        }
-        currentLine = word;
-      }
-    }
+    // Calculate cell width based on DPI (target ~1mm per cell)
+    final dotsPerMm = dpi / 25.4;
+    final cellWidth = math.max(
+      12,
+      math.min(14, dotsPerMm.round()),
+    ); // Clamp to 12-14 range
 
-    if (currentLine.isNotEmpty) {
-      lines.add(currentLine);
-    }
+    final sb =
+        StringBuffer()
+          ..writeln('SIZE $widthInDots,$heightInDots')
+          ..writeln('GAP $gapInDots,0')
+          ..writeln('DENSITY ${settings.density}')
+          ..writeln('CLS')
+          ..writeln('DELAY 50')
+          ..writeln(
+            'SET REPRINT ON',
+          ) // Enable reprint mode (auto) in no-print, no-ribbon, carriege open
+          ..writeln('CLS')
+          ..writeln('DELAY 100')
+          ..writeln('QRCODE $qrX,$qrY,H,$cellWidth,A,0,"${label.qrData}"')
+          ..writeln('DELAY 50');
 
-    return lines;
-  }
+    sb.writeln('DELAY 100');
+    sb.writeln('PRINT $copies');
+    sb.writeln('CUT'); // Cut the paper after printing
 
-  /// Estimate text width in dots (approximate)
-  int _estimateTextWidth(String text) {
-    // Rough estimation: 12 dots per character for TSS24 font
-    return text.length * 12;
-  }
-
-  /// Format timestamp for display
-  String _formatTimestamp(DateTime timestamp) {
-    return '${timestamp.day.toString().padLeft(2, '0')}/${timestamp.month.toString().padLeft(2, '0')}/${timestamp.year} ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
+    return sb.toString();
   }
 
   /// Convert measurements to dots based on unit
-  int _convertToDots(double value, String unit) {
-    const dpi = 203; // Standard DPI for thermal printers
-
+  int _convertToDots(num dpi, double value, String unit) {
     switch (unit.toLowerCase()) {
       case 'mm':
         return (value * dpi / 25.4).round();
